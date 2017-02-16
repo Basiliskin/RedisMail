@@ -1,0 +1,737 @@
+<html>
+  <head>
+	<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta http-equiv="content-type" content="text/html; charset=utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mail</title>
+    <script type="text/javascript" src="js/knockout-3.4.0.js"></script>
+	<script src="js/jquery-1.12.2.min.js"></script>
+	<script src="js/uikit.min.js"></script>
+	<script src="js/array_db.js"></script>
+	<link id="data-uikit-theme" rel="stylesheet" href="js/uikit.docs.min.css">
+	<link rel="icon" href="data:;base64,iVBORw0KGgo=">
+	<style>
+	.dialogOverlay{
+		background-color: rgba(255,255,255,0.8);
+		top:0;
+		left:0;
+		width:100%;
+		height: 100%;
+		overflow:visible;
+		z-index:4; 	
+		position: fixed; 
+		display: block;
+	}
+	.dialogWrapper {
+		position:absolute;
+		visibility:hidden;
+		overflow:visible;
+		z-index:10;
+		top:-2000px;
+		display: block; 
+		padding: 16px; 
+		opacity: 1;
+		transition: all 200ms;
+	}
+	.dialogHint {
+		line-height:16px;
+		border-width: 1px;   
+		border-color:#BBB;
+		padding:20px;
+		font-size: 12px;
+		font-family: Verdana, Arial;
+		border-radius:6px;
+		color:rgba(0,0,0,1); 
+		background:rgba(255,255,255,1);
+		box-shadow: 0 1px 8px rgba(0,0,0,1);
+		float:left;
+		border-style:solid;
+		position:relative;
+		overflow:hidden;
+		box-sizing:content-box;
+	}
+	.dialogInner{
+		top: auto; 
+		left: auto; 
+		transition: all 200ms; 
+		opacity: 1;
+		float:left;
+		position:relative;
+		width:auto;
+		height:auto;
+	}	
+	</style>
+	</head>
+  <body>
+  
+  <script type="text/html" id="table-template">
+		<div class="pagination pull-right" data-bind="visible:obj.Rows().length>0">
+			<ul class="uk-pagination">
+				<li data-bind="disabled:!obj.CurrentPage">
+					 <a href="#" data-bind="click: obj.prevPage()" class="uk-pagination-previous"><span>«</span></a>
+				</li>
+				<li data-bind="foreach: obj.Pages">
+					<a href="#" data-bind="click: $parent.obj.setPage.bind($parent.obj,$data),text:index+1,css:{'uk-active':$parent.obj.activePage($data)}"></a>
+				</li>								 
+				<li data-bind="disabled:obj.PagesCount<=obj.CurrentPage">
+					<a href="#" data-bind="click: obj.nextPage()" class="uk-pagination-next"><span>»</span></a>
+				</li>
+			</ul>
+		</div>
+		<div style="overflow:auto; height:600px;width:100%;margin:10px">
+			<table>
+				<tbody data-bind="foreach: obj.Rows">
+					<tr >
+						<td align="left" valign="top" style="border: 1px solid black;">
+							<a href="#" data-bind="click: $root.DeleteMail.bind($data,id)" class="uk-pagination-previous"><span>D</span></a>
+							<a href="#" data-bind="click: $root.OpenMail.bind($data,id)" class="uk-pagination-previous"><h3 data-bind="visible:title,text:title"  style="border: 1px solid black;"></h3></a><br>
+							<span data-bind="visible:user,text:user"  style="border: 1px solid black;"></span><br>
+							<span data-bind="visible:body,text:body"  style="border: 1px solid black;"></span>
+							
+						</td>
+					</tr>
+				</tbody>
+			</table>
+		</div>
+		<div class="pagination pull-right" data-bind="visible:obj.Rows().length>0">
+			<ul class="uk-pagination">
+				<li data-bind="disabled:!obj.CurrentPage">
+					 <a href="#" data-bind="click: obj.prevPage()" class="uk-pagination-previous"><span>«</span></a>
+				</li>
+				<li data-bind="foreach: obj.Pages">
+					<a href="#" data-bind="click: $parent.obj.setPage.bind($parent.obj,$data),text:index+1,css:{'uk-active':$parent.obj.activePage($data)}"></a>
+				</li>								 
+				<li data-bind="disabled:obj.PagesCount<=obj.CurrentPage">
+					<a href="#" data-bind="click: obj.nextPage()" class="uk-pagination-next"><span>»</span></a>
+				</li>
+			</ul>
+		</div>
+	</script>
+	<script type="text/html" id="box-list">
+		<ul class="uk-pagination">
+			<li data-bind="foreach: obj.Boxes">
+				<a href="#" data-bind="click: $parent.obj.loadBox.bind($parent.obj,$data),text:title"></a>
+			</li>
+		</ul>
+		<div data-bind="template: { name: 'table-template', data: { obj : obj.box } }"></div>
+	</script>
+	
+<div class="uk-grid"><!-- TABLE CONTENT -->
+	<div class="uk-width-2-4">
+		<div data-bind="template: { name: 'box-list', data: { obj : UserA } }"></div>
+	</div>
+	<div class="uk-width-2-4">
+		<div data-bind="template: { name: 'box-list', data: { obj : UserB } }"></div>
+	</div>
+</div>
+	
+								
+<div id="dynamicDialog" style="display:none;">
+		<div class="dialogOverlay"></div>
+		<div class="dialogWrapper" style="visibility: visible;">
+			<div class="dialogHint">
+				<div class="dialogInner" >
+					<h3 class="uk-text-center">Message</h3>
+					<div id="dialogContent">
+							Loading
+					</div>
+				</div>
+			</div>
+		</div>
+</div>
+<div style="display:none;"><!-- dialogs -->
+	<div id="DynamicLoader" class="dtemplate">
+		<div>
+				Loading
+		</div>
+	</div>
+</div>
+<script>
+var Base64 = (function() {
+    "use strict";
+
+    var _keyStr = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=";
+
+    var _utf8_encode = function (string) {
+
+        var utftext = "", c, n;
+
+        string = string.replace(/\r\n/g,"\n");
+
+        for (n = 0; n < string.length; n++) {
+
+            c = string.charCodeAt(n);
+
+            if (c < 128) {
+
+                utftext += String.fromCharCode(c);
+
+            } else if((c > 127) && (c < 2048)) {
+
+                utftext += String.fromCharCode((c >> 6) | 192);
+                utftext += String.fromCharCode((c & 63) | 128);
+
+            } else {
+
+                utftext += String.fromCharCode((c >> 12) | 224);
+                utftext += String.fromCharCode(((c >> 6) & 63) | 128);
+                utftext += String.fromCharCode((c & 63) | 128);
+
+            }
+
+        }
+
+        return utftext;
+    };
+
+    var _utf8_decode = function (utftext) {
+        var string = "", i = 0, c = 0, c1 = 0, c2 = 0;
+
+        while ( i < utftext.length ) {
+
+            c = utftext.charCodeAt(i);
+
+            if (c < 128) {
+
+                string += String.fromCharCode(c);
+                i++;
+
+            } else if((c > 191) && (c < 224)) {
+
+                c1 = utftext.charCodeAt(i+1);
+                string += String.fromCharCode(((c & 31) << 6) | (c1 & 63));
+                i += 2;
+
+            } else {
+
+                c1 = utftext.charCodeAt(i+1);
+                c2 = utftext.charCodeAt(i+2);
+                string += String.fromCharCode(((c & 15) << 12) | ((c1 & 63) << 6) | (c2 & 63));
+                i += 3;
+
+            }
+
+        }
+
+        return string;
+    };
+
+    var _hexEncode = function(input) {
+        var output = '', i;
+
+        for(i = 0; i < input.length; i++) {
+            output += input.charCodeAt(i).toString(16);
+        }
+
+        return output;
+    };
+
+    var _hexDecode = function(input) {
+        var output = '', i;
+
+        if(input.length % 2 > 0) {
+            input = '0' + input;
+        }
+
+        for(i = 0; i < input.length; i = i + 2) {
+            output += String.fromCharCode(parseInt(input.charAt(i) + input.charAt(i + 1), 16));
+        }
+
+        return output;
+    };
+
+    var encode = function (input) {
+        var output = "", chr1, chr2, chr3, enc1, enc2, enc3, enc4, i = 0;
+
+        input = _utf8_encode(input);
+
+        while (i < input.length) {
+
+            chr1 = input.charCodeAt(i++);
+            chr2 = input.charCodeAt(i++);
+            chr3 = input.charCodeAt(i++);
+
+            enc1 = chr1 >> 2;
+            enc2 = ((chr1 & 3) << 4) | (chr2 >> 4);
+            enc3 = ((chr2 & 15) << 2) | (chr3 >> 6);
+            enc4 = chr3 & 63;
+
+            if (isNaN(chr2)) {
+                enc3 = enc4 = 64;
+            } else if (isNaN(chr3)) {
+                enc4 = 64;
+            }
+
+            output += _keyStr.charAt(enc1);
+            output += _keyStr.charAt(enc2);
+            output += _keyStr.charAt(enc3);
+            output += _keyStr.charAt(enc4);
+
+        }
+
+        return output;
+    };
+
+    var decode = function (input) {
+        var output = "", chr1, chr2, chr3, enc1, enc2, enc3, enc4, i = 0;
+
+        input = input.replace(/[^A-Za-z0-9\+\/\=]/g, "");
+
+        while (i < input.length) {
+
+            enc1 = _keyStr.indexOf(input.charAt(i++));
+            enc2 = _keyStr.indexOf(input.charAt(i++));
+            enc3 = _keyStr.indexOf(input.charAt(i++));
+            enc4 = _keyStr.indexOf(input.charAt(i++));
+
+            chr1 = (enc1 << 2) | (enc2 >> 4);
+            chr2 = ((enc2 & 15) << 4) | (enc3 >> 2);
+            chr3 = ((enc3 & 3) << 6) | enc4;
+
+            output += String.fromCharCode(chr1);
+
+            if (enc3 !== 64) {
+                output += String.fromCharCode(chr2);
+            }
+            if (enc4 !== 64) {
+                output += String.fromCharCode(chr3);
+            }
+
+        }
+
+        return _utf8_decode(output);
+    };
+
+    var decodeToHex = function(input) {
+        return _hexEncode(decode(input));
+    };
+
+    var encodeFromHex = function(input) {
+        return encode(_hexDecode(input));
+    };
+
+    return {
+        'encode': encode,
+        'decode': decode,
+        'decodeToHex': decodeToHex,
+        'encodeFromHex': encodeFromHex
+    };
+}());
+
+	(function(Date) {
+    if (!Date.prototype.toStr) {
+        Date.prototype.toStr = function() {
+            function pad(n) {
+                return n < 10 ? '0' + n : n;
+            }
+            return pad(this.getUTCDate()) +'/'+ pad(this.getUTCMonth() + 1) + ' ' + pad(this.getUTCHours()) + ':' + pad(this.getUTCMinutes());
+        };
+    }
+	}(Date));
+	function zipData(files,onfinish,name){
+		// create div = data;
+		var zip = new JSZip();
+		for(var i=0;i<files.length;i++){
+			var file = files[i];
+			switch(file.type){
+				case 'json':
+					zip.file(file.name, JSON.stringify(file.content));
+					break;
+				default:
+					zip.file(file.name,file.content);
+					break;
+			}
+		}
+		
+		zip.generateAsync({compression:'DEFLATE',type:"blob"}).then(function (blob) {
+			saveAs(blob, (name ? name : 'screener_')+new Date().toStr()+'.zip');
+			if(onfinish) onfinish();
+		});
+	}
+	ko.bindingHandlers.ko_autocomplete = {
+		init: function (element, params) {
+			$(element).autocomplete(params());
+		},
+		update: function (element, params) {
+			$(element).autocomplete("option", "source", params().source);
+		}
+	};
+
+</script>
+	<script>
+	/*
+	
+	
+	http://m8s.nsupdate.info:8081/prod/index.html
+	
+  */
+  
+function VirtualTable(rows,filter){
+	var self = this;
+	self._rows_ = [];
+	self.pages = null,
+	self.Rows = ko.observableArray([]);
+	self.Pages = ko.observableArray([]);
+	self.load(rows,filter);
+}
+VirtualTable.prototype.load = function(rows,filter){
+	var self = this;
+	self.Rows.removeAll();
+	self.Pages.removeAll();
+	rows = rows || self._rows_;
+	if(rows){
+		self.pages = $globalDB.groupToPages(rows,10,filter);
+		self._rows_ = rows;
+		if(self.pages){
+			var cpage = self.pages.pages[self.pages.currentPage || 0];
+			if(cpage){
+				//console.info('cpage',self.pages.currentPage,cpage);
+				for(var i=0;i<cpage.length;i++) self.Rows.push(self._rows_[cpage[i]]);
+				var range = self.pages.range(10);
+				for(var i=0;i<range.length;i++) self.Pages.push(range[i]);
+			}
+		}
+	}
+}
+VirtualTable.prototype.CurrentPage = function() {
+	return this.pages ? this.pages.currentPage : 0;
+}
+VirtualTable.prototype.PagesCount = function() {
+	return this.pages ? this.pages.pages.length-1 : 0;
+}	
+VirtualTable.prototype.prevPage = function () {
+	if (this.pages && this.pages.currentPage > 0) {
+		this.pages.currentPage--;
+		this.load();
+	}
+}
+VirtualTable.prototype.nextPage = function () {
+	if (this.pages && this.pages.currentPage < this.pages.pages.length - 1) {
+		this.pages.currentPage++;
+		this.load();
+	}
+}
+VirtualTable.prototype.setPage = function (item) {
+	this.pages.currentPage = item.index;
+	this.load();
+}
+VirtualTable.prototype.activePage = function (item) {
+	return item.active;
+}
+
+function MailUser(user_id,name,on_read){
+	this.id = user_id;
+	this.name = name;
+	this.box = new VirtualTable([],function(row){ return true; });
+	this.Boxes = ko.observableArray([]);
+	this.Current = ko.observable();
+	this.on_read = on_read;
+}
+MailUser.prototype.deleteMessage = function(msg_id,index){
+	var self = this;
+	self.message_delete(msg_id,function(err,data){
+		self.box._rows_.splice(index, 1);
+		self.box.load(false,function(row){ return true; });
+	});
+}
+MailUser.prototype.loadBox = function(a,b){
+	var self = this;
+	self.box_read(a.title,function(err,data){
+		//console.log('loadBox',self.name,a,data);
+		var msg = data && data.list ? data.list : [];
+		
+		var arr = [];
+		for(var i=0;i<msg.length;i++){
+			var item = msg[i];
+			var record ;
+			for(var id in item){
+				record = JSON.parse(item[id]);
+				record['title'] = Base64.decode(record['title']);
+				record['user'] = Base64.decode(record['user']);
+				record['id'] = id;
+				record['body'] = ko.observable();
+				record['client'] = self;
+				record['pos'] = i;
+			}
+			arr.push(record);
+		}
+		self.box.load(arr,function(row){ return true; });
+	})
+}
+MailUser.prototype.load = function(box){
+	this.Boxes.removeAll();
+	for(var i=0;i<box.length;i++){
+		this.Boxes.push({
+			title : box[i]
+		});
+	}
+}
+MailUser.prototype.send = function(action,om,data,cb){
+	var url = action;
+	var jqxhr = $.ajax({
+		url: url,
+		type: "POST",
+		data : {
+			om : om ,
+			data : JSON.stringify(data)
+		}
+	}).done(function(msg ) {
+		//console.log('send',msg);
+		cb(false,JSON.parse(msg));
+	}).fail(function(jqXHR, textStatus) {
+		//console.error('send',textStatus);
+		cb(textStatus);
+	});	
+}
+// CREATE USER and hes Boxes
+MailUser.prototype.user_create = function(boxes,cb){
+	this.send('user','create',{ 
+		sender : {
+			id : this.id,
+			Box : boxes
+		}
+	},cb);	
+}
+// delete USER 
+MailUser.prototype.user_delete = function(cb){
+	this.send('user','delete',{ 
+		sender : {
+			id : this.id
+		}
+	},cb);	
+}
+// LIST USER Boxes
+MailUser.prototype.user_list = function(cb){
+	this.send('user','list',{ 
+		sender : {
+			id : this.id
+		}
+	},cb);	
+}
+
+//count user Box messages
+MailUser.prototype.box_count = function(box){
+	this.send('box','count',{ 
+		sender : {
+			id : this.id,
+			Box : box
+		}
+	});	
+}
+// Read User Box messages - subject only...
+MailUser.prototype.box_read = function(box,cb){
+	this.Current(box);
+
+	this.send('box','read',{ 
+		sender : {
+			id : this.id,
+			Box : box
+		}
+	},cb);	
+}
+//delete user Box 
+MailUser.prototype.box_count = function(box){
+	this.send('box','delete',{ 
+		sender : {
+			id : this.id,
+			Box : box
+		}
+	});	
+}
+// Send Message from SrcBox.box to DestUser.box
+MailUser.prototype.message_add = function(Subject,Msg,receiver,Box,cb){
+	this.send('message','add',{ 
+		sender : {
+			id 		: this.id,
+			Box 	: 'Sent',
+			name 	: this.name,
+			Subject : Subject,
+			Msg 	: Msg
+		},
+		receiver : {
+			id 		: receiver.id,
+			name	: receiver.name,
+			Box 	: Box || 'Inbox'
+		}
+	},cb);	
+}
+// Move User message from BoxA to BoxB
+MailUser.prototype.message_move = function(From,To,msg_id,cb){
+	this.send('message','move',{ 
+		sender : {
+			id 		: this.id,
+			Box 	: From,
+			BoxNew 	: To,
+			msg_id 	: msg_id
+		}
+	},cb);	
+}
+// read message body
+MailUser.prototype.message_read = function(msg_id,cb){
+	var self = this;
+	self.send('message','read',{ 
+		sender : {
+			id 		: self.id,
+			Box 	: self.Current(),
+			msg_id 	: msg_id
+		}
+	},function(err,data){
+		if(self.on_read){
+			self.on_read(self,self.Current(),msg_id,function(){
+				cb(err,data);
+			});
+		}else{
+			cb(err,data);
+		}
+	});	
+}
+// delete message 
+MailUser.prototype.message_delete = function(msg_id,cb){
+	this.send('message','delete',{ 
+		sender : {
+			id 		: this.id,
+			Box 	: this.Current(),
+			msg_id 	: msg_id
+		}
+	},cb);	
+}
+	
+
+//<span  data-bind="debug: $parent"></span>
+ko.bindingHandlers.debug = {
+    init: function(element, valueAccessor) {
+        console.log( 'Knockoutbinding:' );
+        console.log( element );
+        console.log( ko.toJS(valueAccessor()) );
+    }
+};
+
+	var MainModel = function() {
+		var self = this;
+		
+		
+		self.UserA = new MailUser(1,'Dima');
+		self.UserB = new MailUser(2,'Test',function(user,box,msg_id,cb){
+			user.message_move(box,'Readed',msg_id,function(err,data){
+				cb();
+			});			
+		});
+
+		
+		{
+			var templates = {};
+			$('.dtemplate').each(function(){
+				var form = $(this).find('.uk-form');
+				if(form.length>0)
+					templates[$(this).attr('id')] = form.html();
+				else
+					templates[$(this).attr('id')] =  $(this).html();
+			});
+			function get_template(id){
+				return templates[id];
+			}
+			//console.log('templates',templates);
+			for(var t in templates){
+				$('#'+t).remove();
+			}
+			self.ShowDialog = function(tmpl){
+				ko.cleanNode($("#dialogContent")[0]);
+				$('#dialogContent').empty().html(get_template(tmpl));
+				ko.applyBindings(self, $("#dialogContent")[0]);
+				$('#dynamicDialog').show();
+				$('.dialogWrapper').css({
+					top  : Math.max(0, (($(window).height() - $('.dialogWrapper').outerHeight()) / 2) + $(window).scrollTop()) + "px",
+					left : Math.max(0, (($(window).width() - $('.dialogWrapper').outerWidth()) / 2) + $(window).scrollLeft()) + "px"
+				});
+				$("#dialogContent").find('#btn_close').on('click',function(){
+					//self.SaveDialog('close');
+				});
+			};
+			self.CloseDialog = function(){
+				ko.cleanNode($("#dialogContent")[0]);
+				$('#dialogContent').empty();
+				$('#dynamicDialog').hide();
+
+			};
+			
+			self.Loading = function(show){
+				if(!show){
+					var h = setTimeout(function(){
+						clearTimeout(h);
+						self.CloseDialog();
+					},100);
+				}
+				else{
+					self.ShowDialog('DynamicLoader');
+				}
+			};
+		}
+		
+		// todo : message_move
+		
+		
+		self.DeleteMail = function(msg_id,data){
+			console.log('DeleteMail',msg_id,data);
+			data.client.deleteMessage(msg_id,data['pos']);
+		}
+		self.OpenMail = function(msg_id,data){
+			console.log('OpenMail',msg_id,data);
+			
+			var body = data['body']();
+			if(!body){
+				data.client.message_read(msg_id,function(err,d){
+					if(!err && !d.error){
+						data['body'](Base64.decode(d.msg.Message));
+					}
+					
+				});				
+			}
+			
+		}
+		
+		
+		self.Loading(true);
+		
+		function loadUserBox(user,list,cb){
+			console.log('loadUserBox',user,list);
+			user.load(list);
+			cb();
+		}
+		function loadUser(user,cb){
+			user.user_delete(function(err,data){
+				console.log('user_delete',err,data);
+				user.user_list(function(err,data){
+					console.log('user_list',err,data);
+					if(err || data.error){
+						console.error('user_list',err,data.error);
+					}else{
+						if(data.list && data.list.length){
+							loadUserBox(user,data.list,cb);
+						}else{
+							user.user_create(['Inbox','Sent','Readed'],function(err,data){
+								console.log('user_create',err,data);
+								user.user_list(function(err,data){
+									loadUserBox(user,data.list,cb);
+								});
+							});
+						}
+					}
+				});
+			});
+		}
+
+		loadUser(self.UserA,function(){
+			loadUser(self.UserB,function(){
+				self.UserA.message_add('Welcome!','This is test!',self.UserB,'Inbox',function(err,data){
+					console.info('message_add',err,data);
+					self.Loading(false);
+				});
+			});
+		});
+	};
+	
+	ko.applyBindings(new MainModel());
+
+	</script>
+  </body>
+</html>
